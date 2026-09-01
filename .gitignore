@@ -1,1 +1,5 @@
 *.exe
+bin/
+.env
+__debug_bin*
+cmd/*.o

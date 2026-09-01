@@ -1,0 +1,49 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Credentials live inline here. Replace the placeholders with real values,
+      // or use the ".env" configuration below to keep them out of git.
+      "name": "Zest",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ENVIRONMENT": "local",
+        "SERVER_PORT": "8080",
+        "SLACK_BOT_TOKEN": "xoxb-replace-me",
+        "SLACK_CHANNEL_ID": "C0123456789",
+        "ZENDESK_SUBDOMAIN": "instaviewhomesupport",
+        "ZENDESK_EMAIL": "replace-me@instaview.ai",
+        "ZENDESK_API_TOKEN": "replace-me",
+        "ZENDESK_FIELD_SLACK_THREAD_TS": "0",
+        "ZENDESK_FIELD_SLACK_CHANNEL_ID": "0",
+        "REPORT_WEEKLY_ENABLED": "false"
+      }
+    },
+    {
+      // Reads the same variables from an untracked .env file.
+      // Copy .env.example to .env and fill it in first.
+      "name": "Zest (.env)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/cmd",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      // Attach to an already-running server, e.g. one started by `go run ./cmd`.
+      "name": "Attach to Zest",
+      "type": "go",
+      "request": "attach",
+      "mode": "local",
+      "processId": "${command:pickProcess}"
+    }
+  ]
+}

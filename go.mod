@@ -1,8 +1,11 @@
-module court1
+module zest
 
 go 1.25.0
 
-require github.com/gin-gonic/gin v1.12.0
+require (
+	github.com/gin-gonic/gin v1.12.0
+	github.com/robfig/cron/v3 v3.0.1
+)
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
