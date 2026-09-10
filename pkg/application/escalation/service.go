@@ -47,7 +47,6 @@ func (s *Service) HandleEscalation(ctx context.Context, payload contracts.Escala
 	}
 
 	update := zendesk.TicketUpdate{
-		AdditionalTags: []string{s.cfg.Tag},
 		CustomFields: []zendesk.CustomField{
 			{ID: s.cfg.ThreadTSFieldID, Value: posted.TS},
 			{ID: s.cfg.ChannelIDFieldID, Value: posted.Channel},
@@ -59,6 +58,12 @@ func (s *Service) HandleEscalation(ctx context.Context, payload contracts.Escala
 		// error lets Zendesk retry the webhook rather than silently leaving an
 		// orphaned thread that no later update can reach.
 		return nil, fmt.Errorf("slack thread %s/%s created but ticket write-back failed: %w",
+			posted.Channel, posted.TS, err)
+	}
+
+	// The tag needs its own call: a single-ticket update ignores additional_tags.
+	if _, err := s.zendesk.UpdateTicketTags(ctx, payload.TicketID, []string{s.cfg.Tag}); err != nil {
+		return nil, fmt.Errorf("slack thread %s/%s created and ticket updated but tagging failed: %w",
 			posted.Channel, posted.TS, err)
 	}
 

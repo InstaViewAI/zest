@@ -1,5 +1,10 @@
 *.exe
 bin/
-.env
 __debug_bin*
 cmd/*.o
+.gitignore
+
+# Local credentials - never commit
+.env
+.env.bak-*
+.env.local

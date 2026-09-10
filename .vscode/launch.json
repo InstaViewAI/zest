@@ -5,31 +5,9 @@
   "version": "0.2.0",
   "configurations": [
     {
-      // Credentials live inline here. Replace the placeholders with real values,
-      // or use the ".env" configuration below to keep them out of git.
-      "name": "Zest",
-      "type": "go",
-      "request": "launch",
-      "mode": "auto",
-      "program": "${workspaceFolder}/cmd",
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "ENVIRONMENT": "local",
-        "SERVER_PORT": "8080",
-        "SLACK_BOT_TOKEN": "xoxb-replace-me",
-        "SLACK_CHANNEL_ID": "C0123456789",
-        "ZENDESK_SUBDOMAIN": "instaviewhomesupport",
-        "ZENDESK_EMAIL": "replace-me@instaview.ai",
-        "ZENDESK_API_TOKEN": "replace-me",
-        "ZENDESK_FIELD_SLACK_THREAD_TS": "0",
-        "ZENDESK_FIELD_SLACK_CHANNEL_ID": "0",
-        "REPORT_WEEKLY_ENABLED": "false"
-      }
-    },
-    {
-      // Reads the same variables from an untracked .env file.
+      // Credentials come from the untracked .env file — never inline here.
       // Copy .env.example to .env and fill it in first.
-      "name": "Zest (.env)",
+      "name": "Zest",
       "type": "go",
       "request": "launch",
       "mode": "auto",

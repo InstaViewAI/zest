@@ -1,0 +1,179 @@
+{
+  "info": {
+    "name": "Zest — Zendesk ↔ Slack escalation service",
+    "description": "Every route the service exposes. Set the `baseUrl` variable (default http://localhost:8080).\n\nThe three /webhooks/zendesk/* requests sign themselves automatically when the collection variable `zendeskWebhookSecret` is non-empty; leave it blank for local dev, where the service skips verification.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "ticketId", "value": "12345" },
+    { "key": "slackChannelId", "value": "C0B28FUH5V0" },
+    { "key": "zendeskWebhookSecret", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Ping (unversioned)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/ping", "host": ["{{baseUrl}}"], "path": ["ping"] },
+            "description": "Liveness probe, registered outside the versioned base path so probes survive an API version bump.\n\n200 → {\"service\":\"zest\",\"status\":\"ok\"}"
+          }
+        },
+        {
+          "name": "Ping (versioned)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/ping", "host": ["{{baseUrl}}"], "path": ["api", "v1", "ping"] },
+            "description": "Same handler as /ping.\n\n200 → {\"service\":\"zest\",\"status\":\"ok\"}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Slack",
+      "item": [
+        {
+          "name": "Post message",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel\": \"{{slackChannelId}}\",\n  \"message\": \"Hello from Postman\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/slack/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "slack", "messages"]
+            },
+            "description": "Ad-hoc Slack post. Both fields are required.\n\n200 → {\"message\":\"Message posted successfully\"}\n400 → validation error\n502 → Slack rejected the call (e.g. invalid_auth, channel_not_found)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Zendesk",
+      "item": [
+        {
+          "name": "Update ticket tags",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tags\": [\"escalated\", \"needs-engineering\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/zendesk/tickets/{{ticketId}}/tags",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "zendesk", "tickets", "{{ticketId}}", "tags"]
+            },
+            "description": "Adds tags to a ticket. `tags` must be a non-empty array of non-empty strings.\n\n200 → {\"message\":\"Tags updated successfully\",\"tags\":[...]}\n400 → validation error\n502 → Zendesk rejected the call"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Zendesk webhooks",
+      "description": "Inbound webhooks. Signature-verified as a group when ZENDESK_WEBHOOK_SECRET is set.",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Sign the request the way Zendesk does: base64(HMAC-SHA256(timestamp + rawBody)).",
+              "// Skipped when the secret is blank, matching the service, which disables",
+              "// verification on an empty ZENDESK_WEBHOOK_SECRET.",
+              "const secret = pm.collectionVariables.get('zendeskWebhookSecret');",
+              "if (secret) {",
+              "    const ts = new Date().toISOString();",
+              "    const raw = pm.request.body ? pm.request.body.raw : '';",
+              "    const body = pm.variables.replaceIn(raw || '');",
+              "    const sig = CryptoJS.HmacSHA256(ts + body, secret).toString(CryptoJS.enc.Base64);",
+              "    pm.request.headers.upsert({ key: 'X-Zendesk-Webhook-Signature-Timestamp', value: ts });",
+              "    pm.request.headers.upsert({ key: 'X-Zendesk-Webhook-Signature', value: sig });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Escalation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticket_id\": \"{{ticketId}}\",\n  \"ticket_url\": \"https://instaviewhomesupport.zendesk.com/agent/tickets/{{ticketId}}\",\n  \"subject\": \"Camera offline after firmware update\",\n  \"status\": \"open\",\n  \"priority\": \"high\",\n  \"brand\": \"Instaview\",\n  \"requester_name\": \"Jane Doe\",\n  \"requester_email\": \"jane@example.com\",\n  \"agent_name\": \"Support Agent\",\n  \"agent_email\": \"agent@instaview.ai\",\n  \"device_type\": \"Doorbell\",\n  \"device_model\": \"IV-2000\",\n  \"device_ids\": \"SN-8891, SN-8892\",\n  \"describe_issue\": \"Device stopped streaming after the 2.4.1 update.\",\n  \"description\": \"Customer reports the live feed spins indefinitely. Power-cycled twice, no change.\",\n  \"notes\": \"Second report this week for the same firmware.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/zendesk/escalation",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "zendesk", "escalation"]
+            },
+            "description": "Creates the Slack thread, then writes channel id + thread ts back onto the ticket's custom fields and adds the escalation tag.\n\nOnly `ticket_id` is required; every other field is optional and omitted from the Slack message when blank.\n\n200 → {\"message\":\"Escalation posted\",\"ticket_id\":\"...\",\"channel_id\":\"C...\",\"thread_ts\":\"...\"}\n\nNote: a failure writing back to the ticket is reported as an error even though Slack already has the message, so Zendesk retries rather than leaving an orphaned thread."
+          }
+        },
+        {
+          "name": "Comment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticket_id\": \"{{ticketId}}\",\n  \"comment\": \"Engineering confirmed a regression in 2.4.1; rollback is queued.\",\n  \"author\": \"Support Agent\",\n  \"status\": \"open\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/zendesk/comment",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "zendesk", "comment"]
+            },
+            "description": "Mirrors a ticket comment into the ticket's Slack thread. `ticket_id` and `comment` are required.\n\nOptional `channel_id` / `ts` carry the join key directly; omit them and the service reads the custom fields off the ticket instead. Comments are truncated to 300 characters in the thread.\n\n200 → {\"message\":\"Posted to Slack thread\",\"ticket_id\":\"...\",\"skipped\":false}\n200 → {\"message\":\"No Slack thread for ticket, update skipped\",...,\"skipped\":true} when the ticket was never escalated"
+          }
+        },
+        {
+          "name": "Status change",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticket_id\": \"{{ticketId}}\",\n  \"status\": \"solved\",\n  \"previous_status\": \"open\",\n  \"assignee\": \"Support Agent\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/zendesk/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "zendesk", "status"]
+            },
+            "description": "Mirrors a status transition into the thread. `ticket_id` and `status` are required.\n\nSame thread-resolution and skip behaviour as the comment webhook."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Run stale report",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/stale",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "reports", "stale"]
+            },
+            "description": "Runs the same digest the scheduler posts, on demand. No request body.\n\nSearches Zendesk for `type:ticket tags:<ESCALATION_TAG> updated<<cutoff>` where cutoff is now minus REPORT_STALE_AFTER, groups the results by status and posts one message as the report bot.\n\nPosts an explicit all-clear when nothing is stale, so a broken schedule is distinguishable from a quiet week.\n\n200 → {\"message\":\"Report posted\",\"tickets\":3,\"posted\":true}"
+          }
+        }
+      ]
+    }
+  ]
+}

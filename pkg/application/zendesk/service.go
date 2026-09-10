@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -62,13 +63,13 @@ type Comment struct {
 	Public bool   `json:"public"`
 }
 
-// TicketUpdate is the mutable part of a ticket update request. AdditionalTags
-// appends rather than replacing, so we never clobber tags set elsewhere.
+// TicketUpdate is the mutable part of a ticket update request. Tags are absent
+// on purpose: additional_tags only exists on the bulk "Update Many Tickets"
+// endpoint, and a single-ticket update silently discards it. Use AppendTags.
 type TicketUpdate struct {
-	AdditionalTags []string      `json:"additional_tags,omitempty"`
-	CustomFields   []CustomField `json:"custom_fields,omitempty"`
-	Comment        *Comment      `json:"comment,omitempty"`
-	Status         string        `json:"status,omitempty"`
+	CustomFields []CustomField `json:"custom_fields,omitempty"`
+	Comment      *Comment      `json:"comment,omitempty"`
+	Status       string        `json:"status,omitempty"`
 }
 
 type ticketEnvelope struct {
@@ -102,7 +103,9 @@ func NewService(cfg config.ZendeskConfig) *Service {
 	}
 }
 
-// UpdateTicketTags replaces the tags on a ticket and returns the resulting set.
+// UpdateTicketTags adds tags to a ticket and returns the resulting set. Zendesk
+// maps PUT on this endpoint to "add tags", so existing tags are kept; POST is
+// the one that replaces them.
 func (s *Service) UpdateTicketTags(ctx context.Context, ticketID string, tags []string) ([]string, error) {
 	var out tagsPayload
 
@@ -162,8 +165,10 @@ func (s *Service) SearchTickets(ctx context.Context, query string) ([]Ticket, er
 // when they are non-nil, and maps transport failures onto contracts.Error.
 func (s *Service) do(ctx context.Context, method, endpoint string, body, out any) error {
 	var reader io.Reader
+	var encoded []byte
 	if body != nil {
-		encoded, err := json.Marshal(body)
+		var err error
+		encoded, err = json.Marshal(body)
 		if err != nil {
 			return contracts.Internal("failed to encode payload", err)
 		}
@@ -179,14 +184,23 @@ func (s *Service) do(ctx context.Context, method, endpoint string, body, out any
 	}
 	req.SetBasicAuth(s.email+"/token", s.apiToken)
 
+	// TEMP DEBUG: remove once the ticket write-back is understood.
+	log.Printf("[zendesk-debug] --> %s %s\n[zendesk-debug]     auth-user=%q token-len=%d\n[zendesk-debug]     body=%s",
+		method, endpoint, s.email, len(s.apiToken), string(encoded))
+
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return contracts.BadGateway("failed to reach Zendesk API", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// TEMP DEBUG: resp.Request.URL is the URL actually served, so it differs
+	// from the one above whenever the client followed a redirect.
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	log.Printf("[zendesk-debug] <-- %d final-url=%s\n[zendesk-debug]     body=%s",
+		resp.StatusCode, resp.Request.URL.String(), string(raw))
+
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		return contracts.NewError(resp.StatusCode, fmt.Sprintf("zendesk api error: %s", string(raw)), nil)
 	}
 
@@ -194,7 +208,7 @@ func (s *Service) do(ctx context.Context, method, endpoint string, body, out any
 		return nil
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(raw)).Decode(out); err != nil {
 		return contracts.BadGateway("failed to decode Zendesk response", err)
 	}
 
