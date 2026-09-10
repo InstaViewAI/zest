@@ -7,7 +7,5 @@ cmd/*.o
 # Local credentials - never commit
 .env
 
-#Configurations and Secrets
-config/secret.local.yaml
 .env.bak-*
 .env.local
