@@ -292,7 +292,7 @@ pkg/
   contracts/                 request/response DTOs, shared error type
   common/                    shared route-param names
   infrastructure/
-    config/                  env-backed configuration, validated at boot
+    config/                  viper yaml config + secret loader, validated at boot
     scheduler/               cron runner for the recurring reports
 scripts/
   stub/                      fake Slack + Zendesk for local testing
@@ -303,50 +303,70 @@ scripts/
 
 ## Configuration
 
-All configuration comes from the environment. **Seven variables are required**;
-the process refuses to boot without them, so a missing value surfaces at startup
-rather than during an escalation.
+Configuration follows the same layout as atlas: a config file plus a secret
+file per environment, read with viper and merged at boot (secret values win).
 
-### Required
+```
+config/
+  config.local.yaml          local, non-secret values (committed)
+  secret.local.sample.yaml   copy to secret.local.yaml (gitignored) and fill in
+  config.dev.yaml  secret.dev.yaml
+  config.stg.yaml  secret.stg.yaml
+```
+
+The process reads three environment variables:
 
 | Variable | Notes |
 | --- | --- |
-| `SLACK_BOT_TOKEN` | `xoxb-…`. Needs scopes `chat:write` **and** `chat:write.customize` |
-| `SLACK_CHANNEL_ID` | A `C…` id, **not** a `#name` — a leading `#` is rejected at boot |
-| `ZENDESK_SUBDOMAIN` | e.g. `instaviewhomesupport` |
-| `ZENDESK_EMAIL` | the agent account owning the API token |
-| `ZENDESK_API_TOKEN` | Admin Center → Apps and integrations → Zendesk API |
-| `ZENDESK_FIELD_SLACK_THREAD_TS` | numeric id of the `slack_thread_ts` custom field |
-| `ZENDESK_FIELD_SLACK_CHANNEL_ID` | numeric id of the `slack_channel_id` custom field |
+| `ENVIRONMENT` | `local`/`dev` enable gin debug mode |
+| `CONFIG_FILE_PATH` | e.g. `config/config.dev.yaml` |
+| `SECRET_FILE_PATH` | e.g. `config/secret.dev.yaml`; optional |
 
-### Optional
+In deployed environments `secret.<env>.yaml` holds `$VAR` placeholders that the
+deploy substitutes, as in atlas; values written `"read from secret"` in a config
+file are overwritten by the secret file.
 
-| Variable | Default | Notes |
+Validation runs at boot, and the service will not start if a required key is
+missing, so the problem shows up at startup rather than during an escalation.
+Errors name the yaml key, e.g. `slack.channel_id`.
+
+### Required keys
+
+| Key | Notes |
+| --- | --- |
+| `slack.token` | `xoxb-…`. Needs scopes `chat:write` **and** `chat:write.customize` |
+| `slack.channel_id` | A `C…` id, **not** a `#name` — a leading `#` is rejected at boot |
+| `zendesk.subdomain` | e.g. `instaviewhomesupport` |
+| `zendesk.email` | the agent account owning the API token |
+| `zendesk.api_token` | Admin Center → Apps and integrations → Zendesk API |
+| `escalation.thread_ts_field_id` | numeric id of the `slack_thread_ts` custom field |
+| `escalation.channel_id_field_id` | numeric id of the `slack_channel_id` custom field |
+
+### Optional keys
+
+| Key | Default | Notes |
 | --- | --- | --- |
-| `ENVIRONMENT` | `local` | `local`/`dev` enable gin debug mode |
-| `SERVER_NAME` | `zest` | |
-| `SERVER_HOST` | `""` | all interfaces |
-| `SERVER_PORT` | `8080` | |
-| `SERVER_READ_TIMEOUT` | `10s` | |
-| `SERVER_WRITE_TIMEOUT` | `30s` | |
-| `SERVER_SHUTDOWN_TIMEOUT` | `5s` | |
-| `SLACK_BASE_URL` | `https://slack.com/api` | override for a stub |
-| `SLACK_TIMEOUT` | `10s` | |
-| `SLACK_BOT_NAME` | `ZEST` | display name on alerts and replies |
-| `SLACK_REPORT_BOT_NAME` | `ZEST - Report` | display name on digests |
-| `SLACK_ICON_URL` | `""` | bot avatar |
-| `ZENDESK_BASE_URL` | derived from subdomain | override for sandbox/stub |
-| `ZENDESK_TIMEOUT` | `10s` | |
-| `ZENDESK_WEBHOOK_SECRET` | `""` | **empty disables signature verification** |
-| `ESCALATION_TAG` | `escalated` | written by flow 1, searched by flows 4/5 |
-| `REPORT_STALE_AFTER` | `168h` | how long before a ticket counts as stale |
-| `REPORT_TIMEZONE` | `Local` | e.g. `Asia/Manila`; validated at boot |
-| `REPORT_WEEKLY_ENABLED` | `true` | |
-| `REPORT_WEEKLY_CRON` | `30 1 * * 6` | Saturday 01:30 |
-| `REPORT_MONTHLY_ENABLED` | `false` | built but off, matching Zap 5 |
-| `REPORT_MONTHLY_CRON` | `30 1 1 * *` | |
-
-Copy `.env.example` to `.env` and fill it in; `.env` is gitignored.
+| `server.name` | `zest` | |
+| `server.host` | `""` | all interfaces |
+| `server.port` | `8080` | |
+| `server.read_timeout` | `10s` | |
+| `server.write_timeout` | `30s` | |
+| `server.shutdown_timeout` | `5s` | |
+| `slack.base_url` | `https://slack.com/api` | override for a stub |
+| `slack.timeout` | `10s` | |
+| `slack.bot_name` | `ZEST` | display name on alerts and replies |
+| `slack.report_bot_name` | `ZEST - Report` | display name on digests |
+| `slack.icon_url` | `""` | bot avatar |
+| `zendesk.base_url` | derived from subdomain | override for sandbox/stub |
+| `zendesk.timeout` | `10s` | |
+| `zendesk.webhook_secret` | `""` | **empty disables signature verification** |
+| `escalation.tag` | `escalated` | written by flow 1, searched by flows 4/5 |
+| `report.stale_after` | `168h` | how long before a ticket counts as stale |
+| `report.timezone` | `Local` | e.g. `Asia/Manila`; validated at boot |
+| `report.weekly_enabled` | `true` | |
+| `report.weekly_cron` | `30 1 * * 6` | Saturday 01:30 |
+| `report.monthly_enabled` | `false` | built but off, matching Zap 5 |
+| `report.monthly_cron` | `30 1 1 * *` | |
 
 ---
 
@@ -366,21 +386,21 @@ the fakes alone on `:8777` if you want to poke by hand.
 ### With real credentials
 
 ```bash
-cp .env.example .env   # then fill it in
-make run               # or: go run ./cmd
+cp config/secret.local.sample.yaml config/secret.local.yaml   # then fill it in
+make run
 ```
 
 Test in three stages so a failure tells you which side is wrong:
 
 1. **Slack alone** — `curl` Slack's `chat.postMessage` directly with your token
    and channel id. Rules out scopes and channel membership.
-2. **Real Slack, stub Zendesk** — set the real `SLACK_*` vars but keep
-   `ZENDESK_BASE_URL=http://127.0.0.1:8777/zendesk` and `make stub`. Messages
+2. **Real Slack, stub Zendesk** — set the real `slack.*` keys but keep
+   `zendesk.base_url: http://127.0.0.1:8777/zendesk` and `make stub`. Messages
    land in a real channel; no ticket is touched.
 3. **Both real** — use a throwaway ticket. Escalating a real ticket overwrites
    its pointer and detaches it from any existing thread.
 
-Set `REPORT_WEEKLY_ENABLED=false` while testing and use
+Keep `report.weekly_enabled: false` while testing (the local config does) and use
 `POST /api/v1/reports/stale` to run the digest on demand.
 
 ### Other make targets
@@ -388,7 +408,7 @@ Set `REPORT_WEEKLY_ENABLED=false` while testing and use
 | Target | Does |
 | --- | --- |
 | `build` / `clean` / `start` | binary at `./cmd/zest.o` |
-| `run` | `go run ./cmd` |
+| `run` | `go run ./cmd` with `config/config.local.yaml` + `config/secret.local.yaml` |
 | `fmt` / `vet` / `lint` / `test` / `tidy` | individually |
 | `stub` / `e2e` | local upstream fakes and the flow drive |
 | `validate-push` | tidy → fmt → vet → lint → test → build → clean |
@@ -408,18 +428,18 @@ Set `REPORT_WEEKLY_ENABLED=false` while testing and use
 3. `/invite @ZEST` into the channel. A bot that isn't a member gets
    `not_in_channel` on every call.
 4. Right-click the channel → Copy link → the `C…` at the end is
-   `SLACK_CHANNEL_ID`.
+   `slack.channel_id`.
 
 ### Zendesk
 
 1. **Custom fields** — Admin Center → Objects and rules → Tickets → Fields →
    create `slack_thread_ts` and `slack_channel_id` as **Text**. Copy each
-   field's numeric id into `ZENDESK_FIELD_SLACK_THREAD_TS` and
-   `ZENDESK_FIELD_SLACK_CHANNEL_ID`. Make them agent read-only: a hand-edited
+   field's numeric id into `escalation.thread_ts_field_id` and
+   `escalation.channel_id_field_id`. Make them agent read-only: a hand-edited
    pointer silently detaches the ticket from its thread.
 2. **Webhooks** — Admin Center → Apps and integrations → Webhooks → create three
    (POST, JSON, auth None) pointing at the three webhook endpoints below, and
-   copy the signing secret into `ZENDESK_WEBHOOK_SECRET`.
+   copy the signing secret into `zendesk.webhook_secret` (secret file).
 3. **Triggers** — one per webhook, with a JSON body mapping onto the structs in
    `pkg/contracts/escalation.go`.
 

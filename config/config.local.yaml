@@ -1,0 +1,45 @@
+env: local
+
+server:
+  name: zest
+  host: ""
+  port: 8080
+  read_timeout: 10s
+  write_timeout: 30s
+  shutdown_timeout: 5s
+
+slack:
+  base_url: https://slack.com/api
+  token: "read from secret"
+  timeout: 10s
+  # Channel ID (C...), never a channel name. Right-click channel -> Copy Link.
+  channel_id: C0B28FUH5V0
+  bot_name: ZEST
+  report_bot_name: ZEST - Weekly Report
+  icon_url: https://partner-assets-worker.infra-dev.workers.dev/slackBot.png
+
+zendesk:
+  # Leave empty to derive https://<subdomain>.zendesk.com/api/v2.
+  # Point at http://127.0.0.1:8777/zendesk to use `make stub`.
+  base_url: ""
+  subdomain: instaviewhomesupport
+  email: "read from secret"
+  api_token: "read from secret"
+  timeout: 10s
+  # Leave empty ONLY for local dev: it disables signature verification.
+  webhook_secret: "read from secret"
+
+escalation:
+  tag: escalated
+  # Numeric field IDs of the slack_thread_ts / slack_channel_id custom fields,
+  # from the Zendesk ticket_fields API; both are Text fields.
+  thread_ts_field_id: 49183901058580
+  channel_id_field_id: 49183905928852
+
+report:
+  stale_after: 168h
+  timezone: Asia/Manila
+  weekly_enabled: false
+  weekly_cron: "30 1 * * 6"
+  monthly_enabled: false
+  monthly_cron: "30 1 1 * *"

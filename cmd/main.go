@@ -10,11 +10,17 @@ import (
 )
 
 func main() {
-	log.Printf("ENVIRONMENT: %s", os.Getenv("ENVIRONMENT"))
+	var (
+		env            = os.Getenv("ENVIRONMENT")
+		configFilePath = os.Getenv("CONFIG_FILE_PATH")
+		secretFilePath = os.Getenv("SECRET_FILE_PATH")
+	)
 
-	conf, err := config.LoadConfig()
+	log.Printf("ENVIRONMENT: %s, CONFIG_FILE_PATH: %s, SECRET_FILE_PATH: %s", env, configFilePath, secretFilePath)
+
+	conf, err := config.LoadConfig(configFilePath, secretFilePath, env)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to load config, err: %v. Shutting down.", err))
+		panic(fmt.Sprintf("Failed to read config/secret file, err: %v. Shutting down.", err))
 	}
 
 	s, err := server.NewServer(conf)

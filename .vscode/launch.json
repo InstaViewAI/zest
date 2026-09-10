@@ -5,18 +5,22 @@
   "version": "0.2.0",
   "configurations": [
     {
-      // Credentials come from the untracked .env file — never inline here.
-      // Copy .env.example to .env and fill it in first.
+      // Credentials come from the untracked config/secret.local.yaml — never inline here.
+      // Copy config/secret.local.sample.yaml to config/secret.local.yaml and fill it in first.
       "name": "Zest",
       "type": "go",
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cmd",
       "cwd": "${workspaceFolder}",
-      "envFile": "${workspaceFolder}/.env"
+      "env": {
+        "ENVIRONMENT": "local",
+        "CONFIG_FILE_PATH": "config/config.local.yaml",
+        "SECRET_FILE_PATH": "config/secret.local.yaml"
+      }
     },
     {
-      // Attach to an already-running server, e.g. one started by `go run ./cmd`.
+      // Attach to an already-running server, e.g. one started by `make run`.
       "name": "Attach to Zest",
       "type": "go",
       "request": "attach",

@@ -4,6 +4,10 @@
 BINARY    := ./cmd/zest.o
 GOPATH    := $(shell go env GOPATH)
 
+# Specify the path to the application's configuration and secret files.
+CONFIG_FILE := config/config.local.yaml
+SECRET_FILE := config/secret.local.yaml
+
 .PHONY: build clean start run fmt vet lint test tidy validate-push docker-build docker-clean stub e2e
 
 # Build the zest binary.
@@ -16,15 +20,15 @@ clean:
 	@echo "Cleaning zest..."
 	rm -f $(BINARY)
 
-# Start the previously built binary. Configuration comes from the environment.
+# Start the previously built binary with the local config and secret files.
 start:
 	@echo "Starting zest..."
-	$(BINARY)
+	ENVIRONMENT=local CONFIG_FILE_PATH=$(CONFIG_FILE) SECRET_FILE_PATH=$(SECRET_FILE) $(BINARY)
 
 # Build and run in one step.
 run:
 	@echo "Running zest..."
-	go run ./cmd
+	ENVIRONMENT=local CONFIG_FILE_PATH=$(CONFIG_FILE) SECRET_FILE_PATH=$(SECRET_FILE) go run ./cmd
 
 # Format the code.
 fmt:

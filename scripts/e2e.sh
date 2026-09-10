@@ -32,13 +32,29 @@ go run ./scripts/stub > "$TMP/stub.log" 2>&1 &
 STUB_PID=$!
 
 echo "==> starting zest on :${PORT}"
-env ENVIRONMENT=local SERVER_PORT="$PORT" \
-	SLACK_BASE_URL="http://127.0.0.1:${STUB_PORT}/slack" \
-	SLACK_BOT_TOKEN=stub-token SLACK_CHANNEL_ID=C123 \
-	ZENDESK_BASE_URL="http://127.0.0.1:${STUB_PORT}/zendesk" \
-	ZENDESK_SUBDOMAIN=acme ZENDESK_EMAIL=dev@example.com ZENDESK_API_TOKEN=stub-token \
-	ZENDESK_FIELD_SLACK_THREAD_TS=111 ZENDESK_FIELD_SLACK_CHANNEL_ID=222 \
-	REPORT_WEEKLY_ENABLED=false \
+# config.local.yaml supplies everything else; this points it at the stubs.
+cat > "$TMP/secret.e2e.yaml" <<EOF
+server:
+  port: ${PORT}
+slack:
+  base_url: http://127.0.0.1:${STUB_PORT}/slack
+  token: stub-token
+  channel_id: C123
+zendesk:
+  base_url: http://127.0.0.1:${STUB_PORT}/zendesk
+  subdomain: acme
+  email: dev@example.com
+  api_token: stub-token
+  webhook_secret: ""
+escalation:
+  thread_ts_field_id: 111
+  channel_id_field_id: 222
+report:
+  weekly_enabled: false
+EOF
+env ENVIRONMENT=local \
+	CONFIG_FILE_PATH="config/config.local.yaml" \
+	SECRET_FILE_PATH="$TMP/secret.e2e.yaml" \
 	go run ./cmd > "$TMP/app.log" 2>&1 &
 APP_PID=$!
 
